@@ -10401,6 +10401,7 @@ def _call_llm_impl_with_aux(
             timeout=timeout, extra_body=extra_body,
             reasoning_config=reasoning_config, extra_headers=extra_headers,
             api_mode=api_mode, stream=stream, stream_options=stream_options,
+            route_info=route_info,
         )
     except Exception as exc:
         _notify_aux_llm("error", task=task, provider=provider, model=model, error=str(exc))
@@ -10428,6 +10429,7 @@ def _call_llm_impl(
     api_mode: str = None,
     stream: bool = False,
     stream_options: dict = None,
+    route_info: Optional[Dict[str, str]] = None,
 ) -> Any:
     """Implementation of :func:`call_llm` (see its docstring)."""
     # Capture one immutable runtime snapshot for keying, resolution, retries,

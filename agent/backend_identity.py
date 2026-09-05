@@ -84,6 +84,17 @@ def _norm_base_url(value: Optional[str]) -> str:
     return (value or "").strip().rstrip("/").lower()
 
 
+def _is_named_custom_provider(value: str) -> bool:
+    """Return True for a named entry from ``custom_providers``.
+
+    The runtime uses the bare ``custom`` label for an unnamed custom
+    endpoint, while saved entries receive stable ``custom:<name>`` slugs.
+    Named entries are allowed to share a URL: each can resolve its own API
+    key, so URL+model alone must not strand a valid fallback candidate.
+    """
+    return value.startswith("custom:") and len(value) > len("custom:")
+
+
 @dataclass(frozen=True)
 class BackendIdentity:
     """Normalized identity of one (provider, model, endpoint) deployment.
@@ -167,6 +178,25 @@ def same_deployment(a: BackendIdentity, b: BackendIdentity) -> bool:
     inherits the provider default and cannot prove difference.
     """
     if not (a.provider and b.provider and a.provider == b.provider):
+        # Distinct saved custom providers can intentionally share an
+        # endpoint/model while carrying different API keys. Treat their
+        # stable ``custom:<name>`` identities as separate deployments; also
+        # treat a named custom entry as distinct from the legacy bare
+        # ``custom`` runtime label. This preserves the shim-alias guard for
+        # ordinary provider labels while allowing credential-separated
+        # custom fallback pools (#22548).
+        if (
+            a.model
+            and a.model == b.model
+            and a.base_url
+            and a.base_url == b.base_url
+            and (
+                (_is_named_custom_provider(a.provider) and b.provider == "custom")
+                or (_is_named_custom_provider(b.provider) and a.provider == "custom")
+                or (_is_named_custom_provider(a.provider) and _is_named_custom_provider(b.provider))
+            )
+        ):
+            return False
         # Same-host different-label shims: same URL + same model IS the same
         # deployment even when the alias labels differ (#22548) — unless both
         # labels are first-class registry providers (#70893).
